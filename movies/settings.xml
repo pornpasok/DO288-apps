@@ -5,7 +5,7 @@
          <id>internal-repository</id>
          <name>Maven Repository Manager for classroom</name>
          <!-- // TODO: Change the url attribute to the nexus proxy server URL for your environment. -->
-         <url></url>
+         <url>http://snapshots.maven.codehaus.org/maven2</url>
          <mirrorOf>*</mirrorOf>
          </mirror>
        </mirrors>
