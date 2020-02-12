@@ -79,31 +79,6 @@ pipeline {
                 }
             }
         }
-        
-        /*
-        stage('Launch new app in DEV env') {
-            steps {
-                echo '### Cleaning existing resources in DEV env ###'
-                sh '''
-                        oc project ${DEV_PROJECT}
-                        oc delete all -l app=${APP_NAME}
-                        sleep 5
-                   '''
-
-                echo '### Creating a new app in DEV env ###'
-                //TODO: Create a new app and expose the service
-        sh '''
-            oc project ${DEV_PROJECT}
-            oc new-app --name books nodejs:8~${APP_GIT_URL} \
-            --build-env http_proxy=http://10.44.225.103:8080 \
-            --build-env https_proxy=http://10.44.225.103:8080 \
-            --context-dir ${APP_NAME}
-
-            oc expose svc/${APP_NAME}
-           '''
-            }
-        }
-        */
 
         stage('Wait for S2I build to complete') {
             steps {
@@ -117,6 +92,33 @@ pipeline {
                                 return (it.object().status.phase == "Complete")
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        stage('Promote to DEV') {
+            steps {
+                script {
+                    openshift.withCluster() {
+                        openshift.tag("${APP_NAME}:latest", "${APP_NAME}:dev")
+                    }
+                }
+            }
+        }
+
+        stage('Create DEV') {
+            when {
+                expression {
+                    openshift.withCluster() {
+                        return !openshift.selector("dc", "${APP_NAME}-dev").exists()
+                    }
+                }
+            }
+            steps {
+                script {
+                    openshift.withCluster() {
+                        openshift.newApp("${APP_NAME}:latest", "--name=${APP_NAME}").narrow('svc').expose()
                     }
                 }
             }
@@ -137,59 +139,34 @@ pipeline {
             }
         }
 
-        stage('Promote to Staging Env') {
+        stage('Promote STAGE') {
             steps {
-                timeout(time: 60, unit: 'MINUTES') {
-                    input message: "Promote to Staging?"
-                }
-                //TODO: Tag the books:latest image stream as books:stage
-        script {
-          openshift.withCluster() {
-          openshift.tag("${DEV_PROJECT}/books:latest", "${STAGE_PROJECT}/books:stage")
-          }         
-        }
-            }
-        }
-
-        stage('Deploy to Staging Env') {
-            steps {
-                echo '### Cleaning existing resources in Staging ###'
-                sh '''
-                        oc project ${STAGE_PROJECT}
-                        oc delete all -l app=${APP_NAME}
-                        sleep 5
-                   '''
-
-                echo '### Creating a new app in Staging ###'
-                //TODO: Create a new app in stage using the books:stage image stream and expose the service
-        sh '''
-            oc project ${STAGE_PROJECT}
-            oc new-app --name books -i books:stage
-            oc expose svc/${APP_NAME}
-           '''
-            }
-        }
-
-        stage('Wait for deployment in Staging') {
-            steps {
-                sh "oc get route ${APP_NAME} -n ${STAGE_PROJECT} -o jsonpath='{ .spec.host }' > routehost"
-
                 script {
-                    routeHost = readFile('routehost').trim()
-
                     openshift.withCluster() {
-                        //TODO: Watch deployment until pod is in 'Running' state
-            //openshift.withProject( "${STAGE_PROJECT}" ) {
-            //  def deployment = openshift.selector("dc", "${APP_NAME}").rollout()
-            //  openshift.selector("dc", "${APP_NAME}").related('pods').untilEach(1) {
-            //    return (it.opject().status.phase == "Running")
-                        //  }
-            //}
-
-                        echo "Deployment to Staging env is complete. Access the app at the URL http://${routeHost}."
+                        openshift.tag("${APP_NAME}:dev", "${APP_NAME}:stage")
                     }
                 }
             }
         }
+
+        stage('Create STAGE') {
+            when {
+                expression {
+                    openshift.withCluster() {
+                        return !openshift.selector("dc", "${APP_NAME}-stage").exists()
+                    }
+                }
+            }
+            steps {
+                script {
+                    openshift.withCluster() {
+                        openshift.newApp("${APP_NAME}:stage", "--name=${APP_NAME}-stage").narrow('svc').expose()
+                    }
+                }
+            }
+        }
+        
+    
+        
     }
 }
