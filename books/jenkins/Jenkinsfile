@@ -12,7 +12,7 @@ pipeline {
     environment {
         //TODO: Edit these vars as per your env
         DEV_PROJECT = "cicd"
-        STAGE_PROJECT = "myproject"
+        STAGE_PROJECT = "microservices-dev"
         APP_GIT_URL = "https://github.com/pornpasok/DO288-apps"
         //NEXUS_SERVER = "http://nexus-common.apps.cluster.domain.example.com/repository/nodejs"
         NEXUS_SERVER = ""
@@ -65,6 +65,16 @@ pipeline {
                         openshift.withProject(DEV_PROJECT) {
                             openshift.newBuild("--name=${APP_NAME}", "nodejs:8~${APP_GIT_URL}", "--context-dir ${APP_NAME}")
                         }
+                    }
+                }
+            }
+        }
+
+        stage('Build Image') {
+            steps {
+                script {
+                    openshift.withCluster() {
+                        openshift.selector("bc", "${APP_NAME}").startBuild()
                     }
                 }
             }
