@@ -118,7 +118,7 @@ pipeline {
             steps {
                 script {
                     openshift.withCluster() {
-                        openshift.newApp("${APP_NAME}:latest", "--name=${APP_NAME}").narrow('svc').expose()
+                        openshift.newApp("${APP_NAME}:latest", "--name=${APP_NAME}-dev").narrow('svc').expose()
                     }
                 }
             }
